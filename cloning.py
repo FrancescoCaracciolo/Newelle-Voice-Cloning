@@ -20,6 +20,13 @@ class VoiceCloning(NewelleExtension):
                 "website": "https://huggingface.co/spaces/lj1995/GPT-SoVITS-v2",
                 "class": SoVits2
             },
+            {
+                "key": "fishtts",
+                "title": "FishTTS",
+                "description": "Self-hostable, FishTTS One shot voice cloning. Easily clone voices with only one audio file",
+                "website": "https://huggingface.co/spaces/fishtts/fishtts",
+                "class": FishTTS
+            }
         ]
 
 class SoVits2(TTSHandler):
@@ -43,7 +50,6 @@ class SoVits2(TTSHandler):
             if file.endswith(".wav"):
                 relative_path = os.path.join(self.ref_audio_path, file)
                 res += ((file, relative_path), )
-        print(res)
         return res 
 
     def get_extra_settings(self) -> list:
@@ -149,8 +155,100 @@ class SoVits2(TTSHandler):
                 inp_refs=[],
                 api_name="/get_tts_wav"
         ) 
-        print(result)
-        print(file)
+        shutil.copy(result, file)
+        client.close()
+
+
+
+class FishTTS(TTSHandler):
+    key = "fishtts"
+    def __init__(self, settings, path):
+        super().__init__(settings, path)
+        self.ref_audio_path = os.path.join(os.path.abspath(os.path.join(self.path, os.pardir)), "audio_files")
+        if not os.path.isdir(self.ref_audio_path):
+            os.makedirs(self.ref_audio_path)
+
+    def is_installed(self) -> bool:
+        return bool(find_module("gradio_client"))
+
+    def install(self):
+        install_module("gradio_client", self.path)
+
+    def get_audio_files(self):
+        audio_files = os.listdir(self.ref_audio_path)
+        res = tuple()
+        for file in audio_files:
+            if file.endswith(".wav"):
+                relative_path = os.path.join(self.ref_audio_path, file)
+                res += ((file, relative_path), )
+        return res 
+
+    def get_extra_settings(self) -> list:
+        return [
+            {
+                "key": "url",
+                "title": "Endpoint",
+                "description": "URL of the endpoint",
+                "type": "entry",
+                "default": "fishaudio/fish-speech-1",
+            },
+            {
+                "key": "audio",
+                "title": "Reference Audio",
+                "description": "Full filepath to the reference audio",
+                "type": "combo",
+                "values": self.get_audio_files(),
+                "default": "",
+                "folder": self.ref_audio_path,
+                "refresh": lambda x : self.settings_update(),
+            },
+            {
+                "key": "ref-prompt",
+                "title": "Reference Prompt",
+                "description": "Reference prompt",
+                "type": "entry",
+                "default": "",
+            }, 
+            {
+                "key": "top_p",
+                "title": "Top P",
+                "description": "Top P",
+                "type": "range",
+                "min": 0.0,
+                "max": 1.0,
+                "round-digits": 2,
+                "default": 0.7
+            },
+            {
+                "key": "temperature",
+                "title": "Temperature",
+                "description": "Temperature",
+                "type": "range",
+                "min": 0.0,
+                "max": 1.0,
+                "round-digits": 2,
+                "default": 0.8
+            },
+        ]
+
+    def save_audio(self, message, file): 
+        from gradio_client import Client, handle_file
+        client = Client(self.get_setting("url"))
+        result = client.predict(
+              text=message,
+              normalize=True,
+              reference_audio=handle_file(self.get_setting("audio")),
+              reference_text=self.get_setting("ref-prompt"),
+              max_new_tokens=1024,
+              chunk_length=200,
+              top_p=self.get_setting("top_p"),
+              repetition_penalty=1.2,
+              temperature=self.get_setting("temperature"),
+              seed=0,
+              use_memory_cache="never",
+              api_name="/inference_wrapper"
+        ) 
+        result = result[0]
         shutil.copy(result, file)
         client.close()
 
