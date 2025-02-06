@@ -1,8 +1,10 @@
-from .extra import find_module, install_module
-from .tts import TTSHandler
+from .utility.pip import find_module, install_module
+from .handlers.tts import TTSHandler
 from .extensions import NewelleExtension
 import shutil
 import os
+
+
 class VoiceCloning(NewelleExtension):
 
     name = "Voice Cloning"
