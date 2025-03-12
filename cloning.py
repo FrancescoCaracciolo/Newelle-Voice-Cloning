@@ -43,7 +43,7 @@ class SoVits2(TTSHandler):
         return bool(find_module("gradio_client"))
 
     def install(self):
-        install_module("gradio_client", self.path)
+        install_module("gradio_client", self.pip_path)
 
     def get_audio_files(self):
         audio_files = os.listdir(self.ref_audio_path)
@@ -174,7 +174,7 @@ class FishTTS(TTSHandler):
         return bool(find_module("gradio_client"))
 
     def install(self):
-        install_module("gradio_client", self.path)
+        install_module("gradio_client", self.pip_path)
 
     def get_audio_files(self):
         audio_files = os.listdir(self.ref_audio_path)
