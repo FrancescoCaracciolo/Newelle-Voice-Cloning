@@ -1,5 +1,6 @@
 from .utility.pip import find_module, install_module
 from .handlers.tts import TTSHandler
+from .handlers import ExtraSettings
 from .extensions import NewelleExtension
 import shutil
 import os
@@ -28,6 +29,13 @@ class VoiceCloning(NewelleExtension):
                 "description": "Self-hostable, FishTTS One shot voice cloning. Easily clone voices with only one audio file",
                 "website": "https://huggingface.co/spaces/fishtts/fishtts",
                 "class": FishTTS
+            },
+            {
+                "key": "indextts",
+                "title": "IndexTTS",
+                "description": "Self-hostable, IndexTTS One shot voice cloning. Easily clone voices with only one audio file",
+                "website": "https://huggingface.co/spaces/indextts/indextts",
+                "class": IndexTTS
             }
         ]
 
@@ -56,6 +64,7 @@ class SoVits2(TTSHandler):
 
     def get_extra_settings(self) -> list:
         return [
+            ExtraSettings.EntrySetting("api", "HuggingFace API Token", "Not mandatory, HF API token", ""),
             {
                 "key": "url",
                 "title": "Endpoint",
@@ -140,7 +149,10 @@ class SoVits2(TTSHandler):
 
     def save_audio(self, message, file): 
         from gradio_client import Client, handle_file
-        client = Client(self.get_setting("url"))
+        if self.get_setting("api") == "":
+            client = Client(self.get_setting("url"))
+        else:
+            client = Client(self.get_setting("url"), hf_token=self.get_setting("api"))
         result = client.predict(
                 ref_wav_path=handle_file(self.get_setting("audio")),
                 prompt_text=self.get_setting("ref-prompt"),
@@ -187,6 +199,7 @@ class FishTTS(TTSHandler):
 
     def get_extra_settings(self) -> list:
         return [
+            ExtraSettings.EntrySetting("api", "HuggingFace API Token", "Not mandatory, HF API token", ""),
             {
                 "key": "url",
                 "title": "Endpoint",
@@ -235,7 +248,10 @@ class FishTTS(TTSHandler):
 
     def save_audio(self, message, file): 
         from gradio_client import Client, handle_file
-        client = Client(self.get_setting("url"))
+        if self.get_setting("api") == "":
+            client = Client(self.get_setting("url"))
+        else:
+            client = Client(self.get_setting("url"), hf_token=self.get_setting("api"))
         result = client.predict(
               text=message,
               normalize=True,
@@ -254,3 +270,88 @@ class FishTTS(TTSHandler):
         shutil.copy(result, file)
         client.close()
 
+
+class IndexTTS(TTSHandler):
+    key = "indextts"
+    def __init__(self, settings, path):
+        super().__init__(settings, path)
+        self.ref_audio_path = os.path.join(os.path.abspath(os.path.join(self.path, os.pardir)), "audio_files")
+        if not os.path.isdir(self.ref_audio_path):
+            os.makedirs(self.ref_audio_path)
+
+    def is_installed(self) -> bool:
+        return bool(find_module("gradio_client"))
+
+    def install(self):
+        install_module("gradio_client", self.pip_path)
+
+    def get_audio_files(self):
+        audio_files = os.listdir(self.ref_audio_path)
+        res = tuple()
+        for file in audio_files:
+            # Assuming audio files can be wav, mp3, etc. Adjust if needed.
+            if file.lower().endswith((".wav", ".mp3", ".ogg", ".flac")):
+                relative_path = os.path.join(self.ref_audio_path, file)
+                res += ((file, relative_path), )
+        return res
+
+    def get_extra_settings(self) -> list:
+        return [
+            ExtraSettings.EntrySetting("api", "HuggingFace API Token", "Not mandatory, HF API token", ""), 
+            {
+                "key": "url",
+                "title": "Endpoint",
+                "description": "URL of the Gradio endpoint",
+                "type": "entry",
+                "default": "IndexTeam/IndexTTS",
+            },
+            {
+                "key": "audio",
+                "title": "Reference Audio Prompt",
+                "description": "Full filepath to the reference audio (prompt)",
+                "type": "combo",
+                "values": self.get_audio_files(),
+                "default": "",
+                "folder": self.ref_audio_path,
+                "refresh": lambda x : self.settings_update(),
+            },
+        ]
+
+    def save_audio(self, message, file):
+        from gradio_client import Client, handle_file
+        if self.get_setting("api") == "":
+            client = Client(self.get_setting("url"))
+        else:
+            client = Client(self.get_setting("url"), hf_token=self.get_setting("api"))
+        reference_audio_path = self.get_setting("audio")
+
+        if not reference_audio_path or not os.path.exists(reference_audio_path):
+             # Handle error: Reference audio not selected or not found
+             print(f"Error: Reference audio file not found or not selected: {reference_audio_path}")
+             # Maybe raise an exception or return an error indicator
+             return False # Indicate failure
+
+        try:
+            result = client.predict(
+                    prompt=handle_file(reference_audio_path),
+                    text=message,
+                    api_name="/gen_single"
+            )
+            # Assuming 'result' is the path to the generated audio file
+            result = result["value"]
+            if result and os.path.exists(result):
+                 shutil.copy(result, file)
+                 # Clean up temporary file created by gradio_client if necessary
+                 # os.remove(result) # Be careful with this if result is not always a temp file
+                 return True # Indicate success
+            else:
+                 print(f"Error: Prediction failed or returned invalid path: {result}")
+                 return False # Indicate failure
+
+        except Exception as e:
+            print(f"Error during TTS prediction: {e}")
+            return False # Indicate failure
+        finally:
+            # Ensure client connection is closed, though gradio_client might handle this implicitly
+            # Check gradio_client documentation if explicit closing is needed or possible
+            pass
