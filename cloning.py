@@ -75,7 +75,7 @@ class SoVits2(TTSHandler):
             {
                 "key": "audio",
                 "title": "Reference Audio",
-                "description": "Full filepath to the reference audio",
+                "description": "Open the folder and add a wav file to use as reference audio",
                 "type": "combo",
                 "values": self.get_audio_files(),
                 "default": "",
@@ -210,7 +210,7 @@ class FishTTS(TTSHandler):
             {
                 "key": "audio",
                 "title": "Reference Audio",
-                "description": "Full filepath to the reference audio",
+                "description": "Open the folder and add a wav file to use as reference audio",
                 "type": "combo",
                 "values": self.get_audio_files(),
                 "default": "",
@@ -308,7 +308,7 @@ class IndexTTS(TTSHandler):
             {
                 "key": "audio",
                 "title": "Reference Audio Prompt",
-                "description": "Full filepath to the reference audio (prompt)",
+                "description": "Open the folder and add a wav file to use as reference audio",
                 "type": "combo",
                 "values": self.get_audio_files(),
                 "default": "",
