@@ -70,7 +70,7 @@ class SoVits2(TTSHandler):
                 "title": "Endpoint",
                 "description": "URL of the endpoint",
                 "type": "entry",
-                "default": "lj1995/GPT-SoVITS-v2",
+                "default": "XXXXRT/GPT-SoVITS-ProPlus",
             },
             {
                 "key": "audio",
@@ -87,9 +87,8 @@ class SoVits2(TTSHandler):
                 "title": "Reference Language",
                 "description": "Language of the reference audio",
                 "type": "combo",
-                # prompt_language Literal['Chinese', 'English', 'Japanese', 'Yue', 'Korean', 'Chinese-English Mixed', 'Japanese-English Mixed', 'Yue-English Mixed', 'Korean-English Mixed', 'Multilingual Mixed', 'Multilingual Mixed(Yue)'] Default: "Chinese"
-                "values": (("Chinese", "Chinese"), ("English", "English"), ("Japanese", "Japanese"), ("Yue", "Yue"), ("Korean", "Korean"), ("Chinese-English Mixed", "Chinese-English Mixed"), ("Yue-English Mixed", "Yue-English Mixed"), ("Korean-English Mixed", "Korean-English Mixed"),  ("Multilingual Mixed", "Multilingual Mixed"), ("Multilingual Mixed(Yue)")),
-                "default": "Chinese",
+                "values": self.langs(),
+                "default": self.langs()[0][1],
             },
             {
                 "key": "ref-prompt",
@@ -100,25 +99,24 @@ class SoVits2(TTSHandler):
             },
             {
                 "key": "lang",
-                "title": "Language",
+                "title": "Output Language",
                 "description": "Language of the generated audio",
                 "type": "combo",
-                "values": (('Chinese', 'Chinese'), ('English', 'English'), ('Japanese', 'Japanese'), ('Yue', 'Yue'), ('Korean', 'Korean'), ('Chinese-English Mixed', 'Chinese-English Mixed'), ('Japanese-English Mixed', 'Japanese-English Mixed'), ('Yue-English Mixed', 'Yue-English Mixed'), ('Korean-English Mixed', 'Korean-English Mixed'), ('Multilingual Mixed', 'Multilingual Mixed'), ('Multilingual Mixed(Yue)', 'Multilingual Mixed(Yue)')),
-                "default": "Chinese",
+                "values": self.langs(),
+                "default": self.langs()[0][1],
             },
             {
                 "key": "how_to_cut",
-                "title": "How to cut",
-                "description": "How to cut the text for elaboration",
+                "title": "Segmentation Method",
+                "description": "How to split text for processing",
                 "type": "combo",
-                "values": (('No slice', 'No slice'), ('Slice once every 4 sentences', 'Slice once every 4 sentences'), ('Slice per 50 characters', 'Slice per 50 characters'), ('Slice by Chinese punct', 'Slice by Chinese punct'), ('Slice by English punct', 'Slice by English punct'), ('Slice by every punct', 'Slice by every punct')),
+                "values": (('No slice', 'No slice'), ('Slice once every 4 sentences', 'Slice once every 4 sentences'), ('Slice per 50 characters', 'Slice per 50 characters'), ('Slice by Chinese punct', 'Slice by Chinese punct'), ('Slice by English punct', 'Slice by English punct'), ('Slice by every punct', 'Slice by every punct'),),
                 "default": "Slice once every 4 sentences",
-                
             },
             {
                 "key": "top_k",
                 "title": "Top K",
-                "description": "Top K",
+                "description": "Sampling diversity control",
                 "type": "range",
                 "min": 1,
                 "max": 50,
@@ -128,7 +126,7 @@ class SoVits2(TTSHandler):
             {
                 "key": "top_p",
                 "title": "Top P",
-                "description": "Top P",
+                "description": "Nucleus sampling probability",
                 "type": "range",
                 "min": 0.0,
                 "max": 1.0,
@@ -138,39 +136,79 @@ class SoVits2(TTSHandler):
             {
                 "key": "temperature",
                 "title": "Temperature",
-                "description": "Temperature",
+                "description": "Creative randomness control",
                 "type": "range",
                 "min": 0.0,
                 "max": 1.0,
                 "round-digits": 2,
                 "default": 1.0
             },
+            {
+                "key": "speed",
+                "title": "Speech Rate",
+                "description": "Adjust speaking speed",
+                "type": "range",
+                "min": 0.6,
+                "max": 1.65,
+                "step": 0.05,
+                "round-digits": 2,
+                "default": 1.0
+            },
+            {
+                "key": "freeze_consistency",
+                "title": "Freeze Settings Consistency",
+                "description": "Keep previous parameters for consistency",
+                "type": "toggle",
+                "default": False
+            },
         ]
+    
+    def langs(self):
+        langs = ['Chinese', 'English', 'Japanese', 'Yue', 'Korean', 'Chinese-English Mixed', 'Japanese-English Mixed', 'Yue-English Mixed', 'Korean-English Mixed', 'Multilingual Mixed', 'Multilingual Mixed(Yue)']
+        t = tuple()
+        for l in langs:
+            t += ((l, l), )
+        return t
 
     def save_audio(self, message, file): 
         from gradio_client import Client, handle_file
+        # Language mapping for API compatibility
+        
         if self.get_setting("api") == "":
             client = Client(self.get_setting("url"))
         else:
             client = Client(self.get_setting("url"), hf_token=self.get_setting("api"))
+        
+        # Validate reference audio
+        if not os.path.exists(self.get_setting("audio")):
+            raise FileNotFoundError(f"Reference audio not found: {self.get_setting('audio')}")
+        
         result = client.predict(
-                ref_wav_path=handle_file(self.get_setting("audio")),
-                prompt_text=self.get_setting("ref-prompt"),
-                prompt_language=self.get_setting("ref-language"),
-                text=message,
-                text_language=self.get_setting("lang"),
-                how_to_cut=self.get_setting("how_to_cut"),
-                top_k=int(self.get_setting("top_k")),
-                top_p=self.get_setting("top_p"),
-                temperature=self.get_setting("temperature"),
-                ref_free=False,
-                speed=1,
-                if_freeze=False,
-                inp_refs=[],
-                api_name="/get_tts_wav"
+            ref_wav_path=handle_file(self.get_setting("audio")),
+            prompt_text=self.get_setting("ref-prompt"),
+            prompt_language=self.get_setting("ref-language"),
+            text=message,
+            text_language=self.get_setting("lang"),
+            how_to_cut=self.get_setting("how_to_cut"),
+            top_k=int(self.get_setting("top_k")),
+            top_p=float(self.get_setting("top_p")),
+            temperature=float(self.get_setting("temperature")),
+            ref_free=False,
+            speed=float(self.get_setting("speed")),
+            if_freeze=bool(self.get_setting("freeze_consistency")),
+            inp_refs=[],
+            api_name="/get_tts_wav"
         ) 
-        shutil.copy(result, file)
-        client.close()
+        
+        # Error handling throughout the workflow
+        if not os.path.exists(result):
+            raise RuntimeError(f"TTS synthesis failed. Output file not created: {result}")
+            
+        try:
+            shutil.copy(result, file)
+            return True
+        except Exception as e:
+            raise RuntimeError(f"Failed to copy audio file: {str(e)}")
 
 
 
